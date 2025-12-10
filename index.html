@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phone Number Location Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Leaflet (FREE MAP) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <!-- phonenumbers.js (NO API KEY) -->
+    <script src="https://cdn.jsdelivr.net/npm/libphonenumber-js/bundle/libphonenumber-max.js"></script>
+
+    <style>
+        #map {
+            height: 400px;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto p-5 max-w-3xl">
+
+        <h1 class="text-3xl font-bold text-center mb-6 text-blue-600">📱 Phone Number Location Finder</h1>
+
+        <!-- Input Section -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <label class="block text-gray-700 mb-2">Enter Phone Number:</label>
+            <input id="phoneNumber" type="tel" placeholder="+91XXXXXXXXXX"
+                class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500">
+
+            <button id="trackBtn"
+                class="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-lg w-full font-bold shadow-md">
+                🔍 Track Phone Location
+            </button>
+
+            <div id="location" class="text-xl font-semibold mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200 text-center">
+                📱 Enter a phone number to track
+            </div>
+        </div>
+
+        <!-- Map Section -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-bold mb-4 text-blue-600">🗺️ Map View</h2>
+            <div id="map"></div>
+        </div>
+
+        <!-- History Section -->
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-bold mb-4 text-blue-600">🕒 Location History</h2>
+            <div id="history" class="space-y-2">
+                <p class="text-gray-500">No history yet.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Init Map
+        let map = L.map('map').setView([20, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19
+        }).addTo(map);
+
+        let marker = L.marker([20, 0]).addTo(map);
+
+        // Track Button Click
+        document.getElementById("trackBtn").addEventListener("click", async () => {
+            const phone = document.getElementById("phoneNumber").value;
+            
+            if (!phone || phone.length < 8) {
+                document.getElementById("location").innerHTML = `
+                    <span class="text-red-600">⚠️ Please enter a valid phone number</span>
+                `;
+                return;
+            }
+
+            try {
+                const parsed = libphonenumber.parsePhoneNumber(phone);
+
+                const country = parsed.country || "Unknown";
+                const region = new Intl.DisplayNames(['en'], { type: 'region' }).of(country);
+
+                // Free GeoCoding API → converts region → coordinates
+                const geoURL = `https://nominatim.openstreetmap.org/search?country=${region}&format=json&limit=1`;
+                const geoData = await fetch(geoURL).then(r => r.json());
+
+                const lat = geoData[0]?.lat || 20;
+                const lon = geoData[0]?.lon || 0;
+
+                // Update Output Box
+                document.getElementById("location").innerHTML = `
+                    <span class="text-green-600">✅ Location found for ${phone}</span><br>
+                    <b>Country:</b> ${region}<br>
+                    <b>Time Zone:</b> ${parsed.getTimeZone ? parsed.getTimeZone() : "Unknown"}<br>
+                    <b>Latitude:</b> ${parseFloat(lat).toFixed(4)}<br>
+                    <b>Longitude:</b> ${parseFloat(lon).toFixed(4)}
+                `;
+
+                // Update Map
+                marker.setLatLng([lat, lon]);
+                map.setView([lat, lon], 5);
+
+                // Update History
+                const historyDiv = document.getElementById("history");
+                const item = document.createElement('div');
+                item.className = "bg-gray-100 p-3 rounded";
+                item.innerHTML = `
+                    <p class="font-medium">📌 ${region}</p>
+                    <p class="text-sm text-gray-600">Lat: ${lat}, Lon: ${lon}</p>
+                `;
+                historyDiv.prepend(item);
+
+            } catch (err) {
+                document.getElementById("location").innerHTML = `
+                    <span class="text-red-600">⚠️ Couldn't parse the number. Try another.</span>
+                `;
+                console.error(err);
+            }
+        });
+    </script>
+
+</body>
+</html>
